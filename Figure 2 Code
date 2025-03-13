@@ -1,0 +1,138 @@
+
+file:///C:/Users/weber024/Documents/VisualizationExperimentPAFs/Figure2_November_CleanCookingDataUpdated.nb.html
+
+# Load Libraries 
+
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggalt)
+library(ggrepel)
+library(glue)
+library(ggtext)
+library(forcats)
+
+
+custom_shapes <- c(16, 17, 15, 25, 3, 7, 8) 
+
+# In the final figure the labels are changed (E.G. ssp2 baseline is changed to baseline) in Powerpoint because this was a debate among the co-authors later on 
+
+# Use fct_relevel to explicitly set the factor order
+data_long <- data_long %>%
+  mutate(Scenario = fct_relevel(Scenario, "SSP2_Baseline", "EndofPipe", "Waste_Reduction", "Mitigation", 
+                                "Clean_Cooking", "CC_Mitigation", "All"))
+
+# Check the levels again
+print(levels(data_long$Scenario))
+
+# Reshape data to long format and round percent values
+data_long <- data %>%
+  pivot_longer(cols = c(`2015`, `2030`, `2050`), names_to = "Year", values_to = "percent") %>%
+  mutate(
+    #percent = round(percent),  # Round the percent values to nearest integer
+    # Ensure Scenario factor levels are correct immediately after reshaping
+    Scenario = factor(Scenario, levels = c("All","CC_Mitigation","Clean_Cooking","Mitigation","Waste_Reduction","EndofPipe","SSP2_Baseline"))
+  )
+
+# Define the specific order of the regions
+region_order <- c("Africa", "North Africa and Middle East", "Asia", "South and Central America", 
+                  "Europe", "Oceania", "North America and Russia")
+
+# Arrange data by region and scenario, while ensuring Scenario factor levels are maintained
+data_long <- data_long %>%
+  arrange(factor(Region, levels = region_order), Scenario) %>%
+  mutate(
+    # Maintain correct Scenario factor levels in RegionScenario
+    RegionScenario = factor(paste(Region, Scenario, sep = " - "), 
+                            levels = unique(paste(factor(Region, levels = region_order), 
+                                                  factor(Scenario, levels = c("All","CC_Mitigation","Clean_Cooking","Mitigation","Waste_Reduction","EndofPipe","SSP2_Baseline")), 
+                                                  sep = " - ")))
+  )
+
+# Create custom labels for y-axis to show only one copy of the region name per group
+region_labels <- data_long %>%
+  distinct(Region, Scenario) %>%
+  mutate(
+    RegionLabel = if_else(duplicated(Region), "", as.character(Region)),
+    # Ensure Scenario factor levels are maintained
+    Scenario = factor(Scenario, levels = c("All","CC_Mitigation","Clean_Cooking","Mitigation","Waste_Reduction","EndofPipe","SSP2_Baseline"))
+  ) %>%
+  unite("RegionScenario", Region, Scenario, sep = " - ", remove = FALSE)
+
+# Create a named vector for y-axis labels
+y_labels <- setNames(region_labels$RegionLabel, region_labels$RegionScenario)
+
+
+
+# Now create the plot
+plot4 <- ggplot(data_long, aes(x = percent, y = RegionScenario, color = as.factor(Year), group = Scenario, shape = Scenario)) +
+  
+  # Add background rectangles with increased ymin and ymax for space between regions
+  geom_rect(data = rect_data, aes(xmin = -Inf, xmax = Inf, ymin = ymin, ymax = ymax, fill = fill), 
+            color = NA, alpha = 0.3, inherit.aes = FALSE) +  # Light transparency for background
+  
+  # Draw horizontal segments
+  geom_segment(data = data_long %>% filter(Year %in% c("2015", "2050")) %>%
+                 group_by(RegionScenario) %>%
+                 mutate(next_percent = lead(percent, order_by = Year)) %>%
+                 filter(!is.na(next_percent)),
+               aes(xend = next_percent, yend = RegionScenario),
+               color = "#e6e6e6", linewidth = 1.75, show.legend = FALSE) +
+  
+  # Add points
+  geom_point(size = 2, show.legend = TRUE) +
+  
+  # Color and shape scales with explicit limits and breaks for consistent ordering
+  scale_color_manual(name = "Year",
+                     breaks = c("2015", "2030", "2050"),
+                     values = c("#727272", "#9407AA", "#0760AA"),
+                     labels = c("2015", "2030", "2050")) +
+  
+  scale_shape_manual(name = "Scenario",
+                     values = custom_shapes,  # Ensure custom shapes align with each level
+                     limits = c("SSP2_Baseline", "EndofPipe", "Waste_Reduction", "Mitigation", 
+                                "Clean_Cooking", "CC_Mitigation", "All"),
+                     breaks = c("SSP2_Baseline", "EndofPipe", "Waste_Reduction", "Mitigation", 
+                                "Clean_Cooking", "CC_Mitigation", "All")) +  # Enforce explicit order
+  
+  scale_x_continuous(limits = c(0, 50),
+                     breaks = seq(0, 50, by = 5),
+                     labels = glue("{seq(0, 50, 5)}")) +
+  
+  scale_y_discrete(labels = y_labels) +  # Use custom y-axis labels
+  
+  labs(x = expression("Population Attributable Fraction ( in %)"), y = NULL,
+       title = expression("Ischemic Heart Diseases Due to PM"[2.5]*" Exposure Under Different Scenarios Over Time"),
+       color = "Year",
+       shape = "Scenario") +
+  
+  scale_fill_identity() +  # Use the colors directly
+  
+  theme_classic() +
+  theme(
+    plot.title.position = "plot",
+    plot.title = element_text(face = "bold", margin = margin(b = 20)),
+    plot.caption = element_markdown(hjust = 0, color = "#0760AA"),
+    plot.caption.position = "plot",
+    panel.background = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text.x = element_text(color = "black"),
+    axis.text.y = element_text(color = "black", size = 12, vjust = -1),  # Add y-axis text
+    axis.title.x = element_text(color = "black", margin = margin(t = 10)),
+    panel.grid.major.x = element_line(color = "gray", linewidth = 0.1),
+    panel.grid.major.y = element_line(color = "gray", linewidth = 0.1, linetype = "dotted"),
+    legend.position = "right",
+    axis.title.y = element_text(vjust = 1.5)  # Move y-axis title to the top
+  )
+
+print(plot4)
+
+#Export figure for later use 
+
+
+ggsave(filename = "C:/Users/weber024/Documents/FinalFigure2DiagramwithallScenarios(Paper3)/Figurewithfixed.png", plot = plot4, width = 12, height = 7, units = "in", dpi = 300)
+
+
+
+
