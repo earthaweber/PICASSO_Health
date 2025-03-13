@@ -1,1 +1,365 @@
 
+---
+title: "All Indoor PM2.5 Map"
+Note that the same process is used for the outdoor maps but then the variable is called Out_PM and the data also corresponds with the outdoor PM 
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(sf)
+library(dplyr)
+```
+
+
+
+```{r}
+mapdata<-map_data("world")
+# First, identify the region name or ID corresponding to Antarctica
+antarctica_region <- "Antarctica"
+# Filter out the rows corresponding to Antarctica
+mapdata <- mapdata %>%
+  filter(region != antarctica_region)
+  # Remove the "subregion" column
+mapdata <- mapdata %>%
+  select(-subregion)
+
+#insert empty column for inpm_ex 
+library(dplyr)
+
+# Insert an empty column "inpm_ex"
+mapdata <- mapdata %>%
+  mutate(Ind_PM= NA)
+```
+
+
+```{r}
+
+
+# Now mapdata has an empty column "Ind_PM"
+
+#Now we fill in the IMAGE regions with the corresponding Ind_PM to the scenario
+################################################################################################################
+
+### Step 2 ####
+
+# Find the Ind_PM value for Canada in clnenrgmitigation
+Ind_PM_canada <- all_2050$Ind_PM[all_2050$regions == "can"]
+
+# Place the Ind_PM value into the empty Ind_PM column in mapdata for Canada
+mapdata$Ind_PM[mapdata$region == "Canada"] <- Ind_PM_canada
+
+###################################################################################################################
+# Find the Ind_PM value for USA in all_2050
+Ind_PM_usa <- all_2050$Ind_PM[all_2050$regions == "usa"]
+
+# Place the Ind_PM value into the empty Ind_PM column in mapdata for USA
+countries_to_fill<-c("USA","Guam")
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_usa
+
+###################################################################################################################
+# Find the Ind_PM value for Mexico in all_2050
+Ind_PM_mexico <- all_2050$Ind_PM[all_2050$regions == "mex"]
+
+# Place the Ind_PM value into the empty Ind_PM column in mapdata for Mexico
+mapdata$Ind_PM[mapdata$region == "Mexico"] <- Ind_PM_mexico
+####################################################################################################################
+
+# Find the delta_pm value corresponding to "RCAM" in delta_pm dataframe
+Ind_PM_rcam<- all_2050$Ind_PM[all_2050$regions == "rcam"]
+
+# List of countries to fill with RCAM delta_pm value
+countries_to_fill <- c("Barbuda", "Antigua", "Barbados", "Bermuda", "Bahamas", "Belize", "Cayman Islands", 
+"Costa Rica", "Cuba", "Dominica", "Dominican Republic", "El Salvador", "Grenada", "Guatemala", 
+"Haiti", "Honduras", "Jamaica", "Martinique", "Montserrat", "Aruba", "Anguilla", "Curacao", "Nicaragua", 
+"Panama", "Puerto Rico", "Saint Kitts and Nevis", "Saint Lucia", "Sint Marteen", "Trinidad and Tobago", 
+"Saint Vincent and the Grenadines", "British Virgin Islands", "United States Virgin Islands", "Guadeloupe", 
+"Netherlands Antilles", "Turks and Caicos Islands","Saint Barthelemy")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "RCAM" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_rcam
+##################################################################################################################
+
+# Find the Ind_PM value for Mexico in all_2050
+Ind_PM_brazil <- all_2050$Ind_PM[all_2050$regions == "bra"]
+
+# Place the Ind_PM value into the empty Ind_PM column in mapdata for Mexico
+mapdata$Ind_PM[mapdata$region == "Brazil"] <- Ind_PM_brazil
+######################################################################################################################
+
+
+# Find the delta_pm value corresponding to "RCAM" in delta_pm dataframe
+Ind_PM_rsam <- all_2050$Ind_PM[all_2050$regions == "rsam"]
+
+# List of countries to fill with RCAM delta_pm value
+countries_to_fill <- c("Argentina", "Bolivia", "Chile", "Colombia", "Ecuador", 
+"French Guiana", "Falkland Islands", "Guyana", "Suriname", "Paraguay", "Peru", "Uruguay", "Venezuela")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "RCAM" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_rsam
+
+##########################################################################################################################
+
+# Find the delta_pm value corresponding to "NAF" in delta_pm dataframe
+Ind_PM_naf <- all_2050$Ind_PM[all_2050$regions == "naf"]
+
+# List of countries to fill with NAF delta_pm value
+countries_to_fill <- c("Algeria", "Egypt", "Libya", "Morocco", "Tunisia", "Western Sahara")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "NAF" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_naf
+
+#########################################################################################################################
+# Find the delta_pm value corresponding to "WAF" in delta_pm dataframe
+Ind_PM_waf <- all_2050$Ind_PM[all_2050$regions == "waf"]
+
+# List of countries to fill with WAF delta_pm value
+countries_to_fill <- c("Benin","Republic of Congo", "Congo","Congo - Kinshasa","Congo - Brazzaville" ,"Democratic Republic of the Congo", "Cameroon", "Chad", "Central African Republic", "Cape Verde", "Equatorial Guinea", "Gambia", "Gabon", "Ghana", "Guinea", "Côte d'Ivoire","Ivory Coast", "Liberia", "Mali", "Mauritania", "Niger", "Nigeria", "Guinea-Bissau", "Senegal", "Sierra Leone", "Togo", "Sao Tome and Principe", "Burkina Faso", "Saint Helena")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "WAF" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_waf
+########################################################################################################################
+
+# Find the delta_pm value corresponding to "EAF" in delta_pm dataframe
+Ind_PM_eaf <- all_2050$Ind_PM[all_2050$regions == "eaf"]
+
+# List of countries to fill with EAF delta_pm value
+countries_to_fill <- c("Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", "Madagascar", "Mauritius", "Reunion", "Rwanda", "Seychelles", "Somalia", "Sudan", "South Sudan", "Uganda")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "EAF" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_eaf
+
+###########################################################################################################################
+
+# Find the delta_pm value corresponding to "EAF" in delta_pm dataframe
+Ind_PM_saf <- all_2050$Ind_PM[all_2050$regions == "saf"]
+
+# List of countries to fill with EAF delta_pm value
+countries_to_fill <- c("South Africa")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "EAF" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <-Ind_PM_saf
+##########################################################################################################################
+# Find the delta_pm value corresponding to "WEU" in delta_pm dataframe
+Ind_PM_weu <- all_2050$Ind_PM[all_2050$regions == "weu"]
+
+# List of countries to fill with WEU delta_pm value
+countries_to_fill <- c("Denmark", "Ireland", "Austria", "Finland", "France", "Germany", 
+"Greece", "Iceland", "Italy","Vatican","Liechtenstein", "Malta", "Belgium", "Faroe Islands",
+ "Andorra", "Gibraltar", "Luxembourg", "Monaco", "Netherlands", "Norway", "Portugal", "Spain","Canary Islands" ,
+ "Sweden","Switzerland","UK", "Guernsey","San Marino")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "WEU" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <-Ind_PM_weu
+################################################################
+# Find the delta_pm value corresponding to "CEU" in delta_pm dataframe
+Ind_PM_ceu <- all_2050$Ind_PM[all_2050$regions == "ceu"]
+
+# List of countries to fill with CEU delta_pm value
+countries_to_fill <- c("Albania", "Kosovo", "Bosnia and Herzegovina", "Bulgaria", "Cyprus", "Estonia", "Czech Republic", "Croatia", "Hungary", "Latvia", "Lithuania", "Slovakia", "The former Yugoslav Republic of Macedonia","North Macedonia", "Montenegro", "Poland", "Romania", "Slovenia", "Serbia")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "CEU" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_ceu
+
+#########################################################################################################################
+
+# Find the delta_pm value corresponding to "TUR" in delta_pm dataframe
+Ind_PM_tur <- all_2050$Ind_PM[all_2050$regions == "tur"]
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "TUR" for Turkey
+mapdata$Ind_PM[mapdata$region == "Turkey"] <- Ind_PM_tur
+############################################################################################################################
+
+# Find the delta_pm value corresponding to "UKR" in delta_pm dataframe
+Ind_PM_ukr <- all_2050$Ind_PM[all_2050$regions == "ukr"]
+
+# List of countries to fill with UKR delta_pm value
+countries_to_fill <- c("Belarus", "Moldova", "Ukraine")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "UKR" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_ukr
+#############################################################################################################################
+
+# Find the delta_pm value corresponding to "STAN" in delta_pm dataframe
+Ind_PM_stan <- all_2050$Ind_PM[all_2050$regions == "stan"]
+
+# List of countries to fill with STAN delta_pm value
+countries_to_fill <- c("Kyrgyzstan", "Kazakhstan", "Tajikistan", "Turkmenistan", "Uzbekistan")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "STAN" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_stan
+#############################################################################################################################
+
+# Find the delta_pm value corresponding to "RUS" in delta_pm dataframe
+Ind_PM_rus <- all_2050$Ind_PM[all_2050$regions == "rus"]
+
+# List of countries to fill with RUS delta_pm value
+countries_to_fill <- c("Azerbaijan", "Armenia", "Georgia", "Russia")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "RUS" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_rus
+###########################################################################################################################
+
+# Find the delta_pm value corresponding to "ME" in delta_pm dataframe
+Ind_PM_me <- all_2050$Ind_PM[all_2050$regions == "me"]
+
+# List of countries to fill with ME delta_pm value
+countries_to_fill <- c("Bahrain", "Israel", "Iraq", "Jordan", "Kuwait", "Lebanon", "Oman", "Palestine", "Qatar", "Saudi Arabia", "Syria", "Yemen", "United Arab Emirates","Iran")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "ME" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_me
+##############################################################################################################################
+
+# Find the delta_pm value corresponding to "INDIA" in delta_pm dataframe
+Ind_PM_india <- all_2050$Ind_PM[all_2050$regions == "india"]
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "INDIA" for India
+mapdata$Ind_PM[mapdata$region == "India"] <- Ind_PM_india
+##############################################################################################################################
+
+# Find the delta_pm value corresponding to "KOR" in delta_pm dataframe
+Ind_PM_kor <- all_2050$Ind_PM[all_2050$regions == "kor"]
+
+# List of countries to fill with KOR delta_pm value
+countries_to_fill <- c("South Korea", "North Korea")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "KOR" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_kor
+##############################################################################################################################
+
+# Find the delta_pm value corresponding to "CHN" in delta_pm dataframe
+Ind_PM_chn <- all_2050$Ind_PM[all_2050$regions == "chn"]
+
+# List of countries to fill with CHN delta_pm value
+countries_to_fill <- c("China", "Mongolia", "Hong Kong", "Macau", "Taiwan")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "CHN" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_chn
+############################################################################################################################
+
+# Find the delta_pm value corresponding to "SEAS" in delta_pm dataframe
+Ind_PM_seas <- all_2050$Ind_PM[all_2050$regions == "seas"]
+
+# List of countries to fill with SEAS delta_pm value
+countries_to_fill <- c("Burma","Myanmar","Brunei", "Brunei Darussalam", "Cambodia","Laos","Malaysia", "Philippines", "Singapore", "Thailand", "Vietnam", "Timor-Leste")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "SEAS" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_seas
+#################################################################################################################################
+
+# Find the delta_pm value corresponding to "INDO" in delta_pm dataframe
+Ind_PM_indo <- all_2050$Ind_PM[all_2050$regions == "indo"]
+
+# List of countries to fill with INDO delta_pm value
+countries_to_fill <- c("Indonesia", "Papua New Guinea")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "INDO" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_indo
+################################################################################################################################
+
+# Find the delta_pm value corresponding to "JAP" in delta_pm dataframe
+Ind_PM_jap <- all_2050$Ind_PM[all_2050$regions == "jap"]
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "JAP" for Japan
+mapdata$Ind_PM[mapdata$region == "Japan"] <- Ind_PM_jap
+
+#############################################################################################################################
+
+# Find the delta_pm value corresponding to "OCE" in delta_pm dataframe
+Ind_PM_oce <- all_2050$Ind_PM[all_2050$regions == "oce"]
+
+# List of countries to fill with OCE delta_pm value
+countries_to_fill <- c("American Samoa", "Australia", "Wallis and Futuna", "Solomon Islands","Micronesia", "Cook Islands", 
+"Fiji", "Micronesia, Federated States of", "French Polynesia", "Kiribati", "New Caledonia", 
+"Niue", "Norfolk Island", "Vanuatu", "Nauru", "New Zealand", "Tokelau", "Tonga", "Tuvalu", 
+"Wallis and Futuna Islands", "Samoa", "Pitcairn Islands", "Palau", "Marshall Islands","Cocos Islands")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "OCE" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_oce
+
+############################################################################################################################
+
+# Find the delta_pm value corresponding to "RSAS" in delta_pm dataframe
+Ind_PM_rsas <- all_2050$Ind_PM[all_2050$regions == "rsas"]
+
+# List of countries to fill with RSAS delta_pm value
+countries_to_fill <- c("Bangladesh", "Sri Lanka", "Afghanistan", "Bhutan", "Maldives", "Nepal", "Pakistan")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "RSAS" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_rsas
+
+##############################################################################################################################
+
+# Find the delta_pm value corresponding to "RSAF" in delta_pm dataframe
+Ind_PM_rsaf <- all_2050$Ind_PM[all_2050$regions == "rsaf"]
+
+# List of countries to fill with RSAF delta_pm value
+countries_to_fill <- c("Angola", "Mozambique", "Malawi", "Lesotho", "Botswana", "Tanzania", "Namibia", "Swaziland", "Zambia", "Zimbabwe")
+
+# Fill the delta_pm variable in mapdata with the value corresponding to "RSAF" for the listed countries
+mapdata$Ind_PM[mapdata$region %in% countries_to_fill] <- Ind_PM_rsaf
+########################################################################################################################################################
+
+```
+
+```{r}
+
+## Step 3 Plot Map
+
+################ Viridis color scheme and borders removed#################
+
+library(ggplot2)
+library(viridisLite)
+
+# Get the Inferno palette and reverse the order
+inferno_palette <- rev(viridisLite::inferno(25))
+
+# Define the limits for the color scale
+min_value <- 0   # Adjust these limits based on your data
+max_value <- 250 # Ensure that all plots use this same range.
+
+# Define the breaks for the legend
+breaks_values <- seq(min_value, max_value, by = 10)
+
+
+# Plot mapdata1 with a custom gradient color scale using reversed Inferno palette
+AllInd1<-ggplot(mapdata, aes(x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = Ind_PM)) +
+  scale_fill_gradientn(
+    colours = inferno_palette,
+    name = "PM 2.5 (µg/m3)",
+    limits = c(min_value, max_value),
+    breaks = breaks_values, 
+    na.value = "grey50" # Optional: color for NA values
+  ) +
+  theme_minimal() +
+  labs(title = "AllIndoor Interventions 2050 ") +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+     legend.position = "bottom", 
+    legend.title = element_text(size = 10),  # Adjust title size for clarity
+    legend.text = element_text(size = 8),    # Adjust text size for clarity
+    legend.key.width = unit(3.0, "cm"),      # Adjust key width for horizontal layout
+    legend.key.height = unit(0.3, "cm")
+  )
+```
+
+
+
+
+
+
+```{r}
+plot(AllInd1)
+```
