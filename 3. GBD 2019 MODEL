@@ -1,1 +1,527 @@
+title: "All Interventions Including Clean Cooking"
+output: html_notebook
+---
+```{r}
+library (ggplot2)
+library(dplyr)
+library(viridisLite)
+
+# Specify the Years you want to analyze
+analyze_Years <- c(2030)
+region_to_analyze <- "can,usa,mex,rcam,bra,rsam,naf,waf,eaf,saf,weu,ceu,tur,ukr,stan,rus,me,india,kor,chn,seas,indo,jap,oce,rsas,rsaf"
+P_hap_region <- All_Long_2030$'30_P_hap'
+
+# Set seed for reproducibility
+set.seed(65)
+
+# Define a list of CVD dataframes along with their names
+cvd_dataframes <- list(
+  CVD35 = CVD35,
+  CVD40 = CVD40,
+  CVD45 = CVD45,
+  CVD50 = CVD50,
+  CVD55 = CVD55,
+  CVD60 = CVD60,
+  CVD65 = CVD65,
+  CVD70 = CVD70,
+  CVD75 = CVD75,
+  CVD80 = CVD80,
+  CVD85 = CVD85,
+  CVD90 = CVD90,
+  CVD95 = CVD95
+)
+
+# Initialize a list to store results 
+ambient_result_list_per_region <- list()
+both_result_list_per_region <- list()
+
+# Loop through each Year
+for (Year in analyze_Years) {
+  # Loop through each CVD dataframe
+  for (cvd_name in names(cvd_dataframes)) {
+
+    # Loop through each IMAGE_region and print it
+    for (region in unlist(strsplit(region_to_analyze, split = ","))) {
+        #print(IMAGE_region)
+        cvd_df <- cvd_dataframes[[cvd_name]]  # Get the CVD dataframe
+        # Create a subset for the specific Year and IMAGE_region 'can'
+        subset_df <- subset(All_Long_2030, regions == region)
+
+        Out_PM <- subset_df$Out_PM  # Access Out_PM variable
+        Ind_PM <- subset_df$Ind_PM
+        P_hap <- subset_df$'30_P_hap'
+        tot_PM <- subset_df$tot_PM
+        
+        # Find the index of the closest value in exposure_spline to Out_PM
+        closest_index <- which.min(abs(cvd_df$exposure_spline - Out_PM))
+        closest_index_rr_both <- which.min(abs(cvd_df$exposure_spline - tot_PM))
+        
+        # Assuming prevalence is always 1 in your case
+        prevalence <- 1
+        
+        # Call the function thousandDraws and get the results
+        rrambient_results <- thousandDraws(cvd_df, cvd_df$exposure_spline, tmreldraws$x, tmreldraws, closest_index, prevalence, Year, cvd_name)
+        rrboth_results_list <- thousandDraws(cvd_df, cvd_df$exposure_spline, tmreldraws$x, tmreldraws, closest_index_rr_both, prevalence, Year, cvd_name)
+       
+        # Merge the results into the main results list
+        if (is.null(ambient_result_list_per_region[[region]])) {
+            ambient_result_list_per_region[[region]] <- list()  # Initialize the list for the IMAGE_region if it doesn't exist
+        }
+
+        if (is.null(both_result_list_per_region[[region]])) {
+            both_result_list_per_region[[region]] <- list()  # Initialize the list for the IMAGE_region if it doesn't exist
+        }
+        
+        # Append the new results to the IMAGE_region's list
+        ambient_result_list_per_region[[region]] <- c(ambient_result_list_per_region[[region]], list(rrambient_results))
+        both_result_list_per_region[[region]] <- c(both_result_list_per_region[[region]], list(rrboth_results_list))
+    }
+  }
+# }
+
+listof13ambient_per_region <- list()
+listof13both_per_region <- list()
+listof13total_per_region <- list()
+paf_rr_total_per_region <- list()
+
+for (region in unlist(strsplit(region_to_analyze, split = ","))) {
+    ambient_per_region <- ambient_result_list_per_region[[region]]
+    both_per_region <- both_result_list_per_region[[region]]
+    
+    subset_df <- subset(All_Long_2030, regions == region)
+    phap_val_per_region <- subset_df$'30_P_hap'
+
+    listof13ambient <- list()
+    listof13both <- list()
+    listof13total <- list()
+    paf_rr_total <- list()
+   
+    for (i in seq(length(ambient_per_region))) {
+        age_group_rr_both <- both_per_region[[i]]
+        age_group_rr_ambient <- ambient_per_region[[i]]
+        
+        # Store all 1000 samples of the RR Iterations
+        sample_rr_both <- age_group_rr_both
+        sample_rr_ambient <- age_group_rr_ambient
+
+        # Perform operations with elem1 and elem2
+        name_rr_both <- attr(age_group_rr_both, "names")[[1]]
+        name_rr_ambient <- attr(age_group_rr_ambient, "names")[[1]]
+    
+        # Initialize lists to store all 1000 draws
+        listof13ambient[[name_rr_ambient]] <- vector("list", 1000)
+        listof13both[[name_rr_both]] <- vector("list", 1000)
+        listof13total[[name_rr_both]] <- vector("list", 1000)
+        paf_rr_total[[name_rr_both]] <- vector("list", 1000)
+
+        for (j in 1:1000) {
+            listof13ambient[[name_rr_ambient]][[j]] <- sample_rr_ambient[[j]][[4]]
+            listof13both[[name_rr_both]][[j]] <- sample_rr_both[[j]][[4]]
+            total_rr <- calculate_total_RR(sample_rr_ambient[[j]][[4]], phap_val_per_region, sample_rr_both[[j]][[4]])
+            listof13total[[name_rr_both]][[j]] <- total_rr
+            test <-  calculate_PAF(total_rr)
+            if(check_double_zero(test)) {
+                cat("Double zero lookup:", total_rr ,  "iteration" , j , "age", i, "region", region )
+            }
+            
+            paf_rr_total[[name_rr_both]][[j]] <- calculate_PAF(total_rr)
+        }
+    }
+
+    listof13ambient_per_region[[region]] <- listof13ambient
+    listof13both_per_region[[region]] <- listof13both
+    listof13total_per_region[[region]] <- listof13total
+    paf_rr_total_per_region[[region]] <- paf_rr_total
+}
+
+
+# Loop through each IMAGE_region
+for (region in names(paf_rr_total_per_region)) {
+  region_list <- paf_rr_total_per_region[[region]]
+  
+  # Loop through each CVD list within the IMAGE_region
+ for (cvd_index in seq_along(region_list)) {
+   cvd_list <- region_list[[cvd_index]]
+    #Extract the CVD component from the current list's name
+    original_name <- names(region_list)[cvd_index]
+    cvd_component <- sub(".*_(CVD[0-9]+)_.*", "\\1", original_name)
+    
+    # Rename the sublist within the CVD list to a common name
+    common_name <- cvd_component  # or any common name you prefer
+    
+    # Rename all sublists to the common name
+    names(region_list)[cvd_index] <- common_name
+    
+    # Replace the old list with the renamed list
+   region_list[[cvd_index]] <- cvd_list
+  }
+  
+  # Update the IMAGE_region list with renamed sublists
+  paf_rr_total_per_region[[region]] <- region_list
+}
+}
+```
+Now, I need to make the age weights for the above since now I have PAFs for all the different age groups with my pre-prepared dataset called SSP2_2030_Population
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(viridisLite)
+library(tidyr)
+
+#here I am making a new dataframe
+
+df_wide <- SSP2_2030_Population%>%
+    pivot_wider(
+        names_from = Age,
+        values_from = population,
+        names_prefix = ""
+    )
+
+# Define constants and global variables
+num_categories <- 13
+color_palette <- viridis(num_categories, option = "D")
+region_to_analyze <- "can,usa,mex,rcam,bra,rsam,naf,waf,eaf,saf,weu,ceu,tur,ukr,stan,rus,me,india,kor,chn,seas,indo,jap,oce,rsas,rsaf"
+age_columns <- c("35", "40", "45", "50", "55", "60", "65", "70", "75", "80", "85", "90", "95+")
+
+# Function to calculate proportions and create pie chart
+calculate_proportions_and_pie_chart <- function(df_wide, region, year, proportions_list) {
+  prop_subset_data <- subset(df_wide, region == region & Year == year)
+  if (nrow(prop_subset_data) == 0) {
+    cat("No data found for region:", region, "and year:", year, "\n")
+    return(proportions_list)
+  }
+  prop_subset_data[, age_columns] <- lapply(prop_subset_data[, age_columns], as.numeric)
+  age_category_sums <- colSums(prop_subset_data[age_columns], na.rm = TRUE)
+  total_population <- sum(age_category_sums)
+  proportions <- age_category_sums / total_population * 100
+  
+  cat("Proportion of each age category in the total population of", region, "(", year, "):\n")
+  for (i in seq_along(age_columns)) {
+    cat(age_columns[i], ": ", sprintf("%.2f%%\n", proportions[i]))
+  }
+  
+  pie(proportions, labels = paste(names(proportions), ": ", round(proportions, 2), "%"), 
+      main = paste("Proportion of each age category in the total population of", region, "(", year, ")"),
+      col = color_palette)
+  
+  proportions_list[[region]] <- proportions
+  return(proportions_list)
+}
+
+# Initialize an empty list to store proportions for each IMAGE_region
+proportions_list <- list()
+
+# Loop through each IMAGE_region and create pie charts
+for (region in unlist(strsplit(region_to_analyze, split = ","))) {
+  proportions_list <- calculate_proportions_and_pie_chart(df_wide, region, 2030, proportions_list)
+}
+
+print(proportions_list)
+```
+Now, I need to make the age weights for the above since now I have PAFs for all the different age groups with my pre-prepared dataset called SSP2_2030_Population
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(viridisLite)
+library(tidyr)
+
+#here I am making a new dataframe
+
+df_wide <- SSP2_2030_Population%>%
+    pivot_wider(
+        names_from = Age,
+        values_from = population,
+        names_prefix = ""
+    )
+
+# Define constants and global variables
+num_categories <- 13
+color_palette <- viridis(num_categories, option = "D")
+region_to_analyze <- "can,usa,mex,rcam,bra,rsam,naf,waf,eaf,saf,weu,ceu,tur,ukr,stan,rus,me,india,kor,chn,seas,indo,jap,oce,rsas,rsaf"
+age_columns <- c("35", "40", "45", "50", "55", "60", "65", "70", "75", "80", "85", "90", "95+")
+
+# Function to calculate proportions and create pie chart
+calculate_proportions_and_pie_chart <- function(df_wide, region, year, proportions_list) {
+  prop_subset_data <- subset(df_wide, region == region & Year == year)
+  if (nrow(prop_subset_data) == 0) {
+    cat("No data found for region:", region, "and year:", year, "\n")
+    return(proportions_list)
+  }
+  prop_subset_data[, age_columns] <- lapply(prop_subset_data[, age_columns], as.numeric)
+  age_category_sums <- colSums(prop_subset_data[age_columns], na.rm = TRUE)
+  total_population <- sum(age_category_sums)
+  proportions <- age_category_sums / total_population * 100
+  
+  cat("Proportion of each age category in the total population of", region, "(", year, "):\n")
+  for (i in seq_along(age_columns)) {
+    cat(age_columns[i], ": ", sprintf("%.2f%%\n", proportions[i]))
+  }
+  
+  pie(proportions, labels = paste(names(proportions), ": ", round(proportions, 2), "%"), 
+      main = paste("Proportion of each age category in the total population of", region, "(", year, ")"),
+      col = color_palette)
+  
+  proportions_list[[region]] <- proportions
+  return(proportions_list)
+}
+
+# Initialize an empty list to store proportions for each IMAGE_region
+proportions_list <- list()
+
+# Loop through each IMAGE_region and create pie charts
+for (region in unlist(strsplit(region_to_analyze, split = ","))) {
+  proportions_list <- calculate_proportions_and_pie_chart(df_wide, region, 2030, proportions_list)
+}
+
+print(proportions_list)
+```
+```{r}
+#the R is very picky and does not recognize what we calculated as numeric so need to do this 
+
+# Assuming your list is named lowercase_list
+library(purrr)
+
+# Create a new list with names in lowercase
+divided_list <- divided_list %>%
+  set_names(tolower(names(divided_list)))
+
+# Convert all PAF values to numeric
+for (region in names(paf_rr_total_per_region)) {
+  for (age_group in names(paf_rr_total_per_region[[region]])) {
+    paf_rr_total_per_region[[region]][[age_group]] <- as.numeric(paf_rr_total_per_region[[region]][[age_group]])
+  }
+}
+```
+Here since the age groups are named differently in the SSP2 POPULATION Data and the IHME datasets I have to create a map, I use the proportions calculated from above in order to weight the PAFs based on how many people are in that particular age group in the pre-defined regions note I had to clean the SSP2 datasets beforehand in order that the regions were corresponding to IMAGE regions
+
+At the bottom I also define the functions for calculating PAF and the lower and upper Uncertainty intervals
+```{r}
+
+# Define the mapping between the age groups in paf_rr_total_per_IMAGE_region and the proportions list
+age_group_mapping <- c("CVD35" = "35", "CVD40" = "40", "CVD45" = "45", "CVD50" = "50", "CVD55" = "55", "CVD60" = "60",
+                 "CVD65" = "65", "CVD70" = "70", "CVD75" = "75", "CVD80" = "80", "CVD85" = "85", "CVD90" = "90", "CVD95" = "95+")
+
+
+
+# Initialize a list to store results
+results <- list()
+
+# Iterate over each IMAGE_region in paf_rr_total_per_IMAGE_region
+for (region in names(paf_rr_total_per_region)) {
+  
+  results[[region]] <- list()
+  
+  # Iterate over each age group within the IMAGE_region in paf_rr_total_per_IMAGE_region
+  for (age_group in names(paf_rr_total_per_region[[region]])) {
+    
+    # Check if the age group has a corresponding entry in the mapping
+    if (age_group %in% names(age_group_mapping)) {
+      
+      # Get the corresponding age group in divided_list
+      mapped_age_group <- age_group_mapping[[age_group]]
+      
+      # Multiply corresponding values and store the result
+      multiplied_values <- paf_rr_total_per_region[[region]][[age_group]] * divided_list[[region]][[mapped_age_group]]
+      
+      # Store the multiplied values for the current IMAGE_region and age group
+      results[[region]][[age_group]] <- multiplied_values
+    }
+  }
+}
+
+sumlist_per_region <- list()
+# Add ages to get total paf that is weighted
+for (region in names(paf_rr_total_per_region)) {
+    # For every IMAGE_region we get the cdv's
+    # loop 13 times; every time we get the first and add
+    addMe = 0
+    
+    sumlist_per_region[[region]] <- list()
+
+
+    for (draw in 1:1000) {
+    
+        sum <- 0
+
+        for(agegr in 1:13) {
+                sum <- sum + results[[region]][[agegr]][[draw]]
+            }
+
+        sumlist_per_region[[region]][[draw]] <- sum
+
+    # You can perform any operation here inside the loop
+     # print(paste("This is sum number:", IMAGE_region, sum))
+    }
+}
+
+# calc per IMAGE_region the mean, low and high percentile
+region_stats <- list()
+# Calculate stats for each IMAGE_region
+for (region in unlist(strsplit(region_to_analyze, split = ",")))  {
+  numbers <- as.numeric(sumlist_per_region[[region]])
+  mean_value <- mean(numbers)
+  percentiles <- quantile(numbers, probs = c(0.025, 0.975))
+  percentile_2_5 <- percentiles[1]
+  percentile_97_5 <- percentiles[2]
+  
+  # Store the results in a named list
+  region_stats[[region]] <- list(
+    mean = mean_value,
+    low_percentile = percentile_2_5,
+    high_percentile = percentile_97_5
+  )
+}
+
+
+
+
+# Define the function to calculate the total Relative Risk (RR)
+calculate_total_RR <- function(RRambient, P_hap, RRboth) {
+  # Calculate the total RR using the given formula
+  total_RR <- RRambient * (1 - P_hap) + RRboth * P_hap
+
+  if(check_double_zero(total_RR)) {
+              cat("\nDouble zero with total_rr. Ambient: ", RRambient ,  "p hap: " , P_hap , "RRboth:", RRboth )
+          }
+            
+  # Return the total RR
+  return(total_RR)
+}
+
+calculate_PAF <- function(RR) {
+  PAF <- (RR - 1) / RR
+  return(PAF)
+}
+
+check_double_zero <- function(value) {
+  is.double(value) && length(value) == 0
+}
+
+
+thousandDraws <- function(cvd_df, exposure_spline, tmrel_x, tmrel_draws, closest_index, prevalence, year, cvd_name) {
+  # Initialize a list to store RRambient values
+  RRambient_values <- vector()
+  # Initialize a list to store the results
+  rrambient_results_list <- list()
+  
+  
+  for (i in 1:1000) {
+    # Randomly select a draw number between 0 and 1000
+    random_number <- sample(0:999, 1)
+    
+    # Extract the matched draw value
+    matched_draw_value <- cvd_df[[paste0("draw_", random_number)]][closest_index]
+    
+    # Find the index of the closest value in exposure_spline to tmrel
+    tmrel_closest_index <- which.min(abs(cvd_df$exposure_spline - tmrel_x[random_number+1]))
+    
+    # Extract the corresponding tmrel RR value
+    tmrelrr <- cvd_df[[paste0("draw_", random_number)]][tmrel_closest_index]
+    
+    # Save RR ambient
+    RRambient <- matched_draw_value/tmrelrr
+
+    if(check_double_zero(RRambient)) {
+              cat("\nZero draw!. cdv_name: " , cvd_name, "year", year, "draw..", i, "draw_number", random_number, " Matched draw: ", matched_draw_value ,  "tmrelrr" , tmrelrr )
+      }
+    
+    # Save the RRambient value for later use
+    RRambient_values <- c(RRambient_values, RRambient)
+    
+    # Append the results to the list
+    rrambient_results_list[[paste0("Year", year, "_", cvd_name, "_Iteration", i)]] <- list(
+      Year = year,
+      Dataset = cvd_name,
+      Iteration = i,
+      RRambient = RRambient
+    )
+  }
+  
+  return(rrambient_results_list)
+}
+
+```
+
+
+```{r}
+alllong_2030results<-region_stats
+```
+
+
+
+
+```{r}
+# Load necessary libraries
+library(knitr)
+library(kableExtra)
+
+# Convert the list to a data frame
+alllong_2030results_df <- do.call(rbind, lapply(names(alllong_2030results), function(region) {
+  data.frame(
+    Region = region,
+    Mean = alllong_2030results[[region]]$mean * 100,
+    Low_UI = alllong_2030results[[region]]$low_percentile * 100,
+    High_UI = alllong_2030results[[region]]$high_percentile * 100
+  )
+}))
+
+# Remove row names
+rownames(alllong_2030results_df ) <- NULL
+
+
+# Display the table
+kable(alllong_2030results_df , format = "html", caption = "PAF for 2030 All Interventions for Long Cooking Times (in %) ") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+```
+```{r}
+########Calculate % Change if you have more than one result to compare 
+
+# Define the function to calculate percent change
+calculate_percent_change <- function(value1, value2) {
+  return ((value2 - value1) / value1) * 100
+}
+
+# Define the function to process the lists
+calculate_list_percent_change <- function(list1, list2) {
+  percent_change_list <- list()
+  
+  for (region in names(list1)) {
+    if (region %in% names(list2)) {
+      percent_change_list[[region]] <- list(
+        mean = calculate_percent_change(list1[[region]]$mean, list2[[region]]$mean),
+        low_percentile = calculate_percent_change(list1[[region]]$low_percentile, list2[[region]]$low_percentile),
+        high_percentile = calculate_percent_change(list1[[region]]$high_percentile, list2[[region]]$high_percentile)
+      )
+    }
+  }
+  
+  return (percent_change_list)
+}
+
+# Assuming ssp22030results and ssp22050results are already defined
+percent_change_results <- calculate_list_percent_change(ssp2long_2015_results,alllong_2030results)
+
+# Print the percent change results
+print(percent_change_results)
+
+
+
+# Function to flatten the nested list
+flatten_list <- function(nested_list) {
+  do.call(rbind, lapply(names(nested_list), function(x) {
+    data.frame(Region = x, t(unlist(nested_list[[x]])), stringsAsFactors = FALSE)
+  }))
+}
+
+# Flatten the list
+flattened_data <- flatten_list(percent_change_results)
+
+# View the flattened data
+print(flattened_data)
+```
 
