@@ -1,0 +1,305 @@
+---
+title: "Functions for GBD 2019 Model"
+author: "Eartha"
+date: "2025-06-24"
+output: html_document
+---
+#Pre-processing Steps:
+ # 1) Download and Import IHME data 
+  #2) Import PM2.5 Data
+  #3) Import SSP2 Population Data (for this we downloaded it and then collated it to IMAGE regions)
+  #4) Load Functions shown below before each health outcome analyzed
+  #5) Run Code Listed Below Function Code for each scenario and each desired year 
+  #Purpose: Adding in other outcomes upon reviewer request
+
+Here are the functions for ISCHD and Stroke it differs from the COPD function because in 2019 there were different Risk Ratios for each 5 year age category while for COPD the RR is the same across age groups for ISCHD change the name accordingly (e.g.instead of stroke_df cvd_df instead of stroke_name, cvd_name) 
+
+##### FUNCTIONS FOR STROKE AND ISHD ##########
+
+```{r}
+calculate_PAF<-function(RR) {
+  PAF <- (RR - 1) / RR
+  return(PAF)
+}
+```
+
+```{r}
+calculate_weighted_paf<-function(paf, age_distribution) { 
+
+    weighted_paf <- paf * age_distribution 
+
+    total_weighted_paf <- sum(weighted_paf) 
+
+    return(total_weighted_paf) 
+
+} 
+```
+
+
+
+```{r}
+calculate_proportions_and_pie_chart<-function(df_wide, region, year, proportions_list) {
+  prop_subset_data <- subset(df_wide, region == region & Year == year)
+  if (nrow(prop_subset_data) == 0) {
+    cat("No data found for region:", region, "and year:", year, "\n")
+    return(proportions_list)
+  }
+  prop_subset_data[, age_columns] <- lapply(prop_subset_data[, age_columns], as.numeric)
+  age_category_sums <- colSums(prop_subset_data[age_columns], na.rm = TRUE)
+  total_population <- sum(age_category_sums)
+  proportions <- age_category_sums / total_population * 100
+  
+  cat("Proportion of each age category in the total population of", region, "(", year, "):\n")
+  for (i in seq_along(age_columns)) {
+    cat(age_columns[i], ": ", sprintf("%.2f%%\n", proportions[i]))
+  }
+  
+  pie(proportions, labels = paste(names(proportions), ": ", round(proportions, 2), "%"), 
+      main = paste("Proportion of each age category in the total population of", region, "(", year, ")"),
+      col = color_palette)
+  
+  proportions_list[[region]] <- proportions
+  return(proportions_list)
+}
+
+```
+
+```{r}
+calculate_total_RR<-function(RRambient, P_hap, RRboth) {
+  # Calculate the total RR using the given formula
+  total_RR <- RRambient * (1 - P_hap) + RRboth * P_hap
+
+  if(check_double_zero(total_RR)) {
+              cat("\nDouble zero with total_rr. Ambient: ", RRambient ,  "p hap: " , P_hap , "RRboth:", RRboth )
+          }
+            
+  # Return the total RR
+  return(total_RR)
+}
+
+```
+
+
+
+
+```{r}
+check_double_zero<-function(value) {
+  is.double(value) && length(value) == 0
+}
+
+```
+
+NOTE: THIS IS THE ONLY FUNCTION THAT WILL CHANGE SINCE HERE WE ARE USING A DIFFERENT OUTCOME SO REPLACE STROKE_DF with name of dataframe being used in this case stroke is replaced with stroke
+```{r}
+thousandDraws<-function(stroke_df, exposure_spline, tmrel_x, tmrel_draws, closest_index, prevalence, year, stroke_name) {
+  # Initialize a list to store RRambient values
+  RRambient_values <- vector()
+  # Initialize a list to store the results
+  rrambient_results_list <- list()
+  
+  
+  for (i in 1:1000) {
+    # Randomly select a draw number between 0 and 1000
+    random_number <- sample(0:999, 1)
+    
+    # Extract the matched draw value
+    matched_draw_value <- stroke_df[[paste0("draw_", random_number)]][closest_index]
+    
+    # Find the index of the closest value in exposure_spline to tmrel
+    tmrel_closest_index <- which.min(abs(stroke_df$exposure_spline - tmrel_x[random_number+1]))
+    
+    # Extract the corresponding tmrel RR value
+    tmrelrr <- stroke_df[[paste0("draw_", random_number)]][tmrel_closest_index]
+    
+    # Save RR ambient
+    RRambient <- matched_draw_value/tmrelrr
+
+    if(check_double_zero(RRambient)) {
+              cat("\nZero draw!. stroke_name: " , stroke_name, "year", year, "draw..", i, "draw_number", random_number, " Matched draw: ", matched_draw_value ,  "tmrelrr" , tmrelrr )
+      }
+    
+    # Save the RRambient value for later use
+    RRambient_values <- c(RRambient_values, RRambient)
+    
+    # Append the results to the list
+    rrambient_results_list[[paste0("Year", year, "_", stroke_name, "_Iteration", i)]] <- list(
+      Year = year,
+      Dataset = stroke_name,
+      Iteration = i,
+      RRambient = RRambient
+    )
+  }
+  
+  return(rrambient_results_list)
+}
+
+```
+
+##### FUNCTIONS FOR COPD ##########
+
+Main difference here is that there is only one dataset with the RR since it is not segregated by 5 year age groups
+
+```{r}
+# 2) helper functions
+calculate_PAF      <- function(RR)     (RR - 1) / RR
+```
+
+
+```{r}
+check_double_zero <- function(x)      is.double(x) && length(x) == 0
+```
+
+
+```{r}
+thousandDraws     <- function(df, spline, tmrel_x, tmrel_draws, idx, year) {
+  out <- numeric(1000)
+  for (i in seq_len(1000)) {
+    rnd       <- sample(0:999, 1)
+    match_val <- df[[paste0("draw_", rnd)]][idx]
+    tmrel_i   <- which.min(abs(spline - tmrel_x[rnd+1]))
+    tmrel_val <- df[[paste0("draw_", rnd)]][tmrel_i]
+    rramb     <- match_val / tmrel_val
+    if (check_double_zero(rramb)) {
+      message("Zero‐draw warning: draw=", rnd, " idx=", idx)
+    }
+    out[i] <- rramb
+  }
+  out
+}
+```
+
+
+```{r}
+calculate_total_RR <- function(RRambient, P_hap, RRboth) {
+  total_RR <- RRambient * (1 - P_hap) + RRboth * P_hap
+  if (check_double_zero(total_RR)) {
+    message("Double zero with total_rr. Ambient:", RRambient,
+            " p_hap:", P_hap, " RRboth:", RRboth)
+  }
+  total_RR
+}
+
+```
+
+#### Function Explanations ####
+
+To use the code published on GitHub the following functions need to be defined. 
+“thousandDraws” function
+
+Explanation:  We uploaded a dataset that has the GBD 2019 1000 draws across the exposure range of PM2.5 . Plus we have 1000 values across the TMREL distribution, we need to match the value in the exposure range as well as draw from one of the 1000 risks, afterwards we need a theoretical minimum exposure level value. The values for each region  are then saved in a list to then go into the final PAF equation.
+
+Code for ISHD
+```{r}
+thousandDraws<-function(cvd_df, exposure_spline, tmrel_x, tmrel_draws, closest_index, prevalence, year, cvd_name) {
+  # Initialize a list to store RRambient values
+  RRambient_values <- vector()
+  # Initialize a list to store the results
+  rrambient_results_list <- list()
+  
+  
+  for (i in 1:1000) {
+    # Randomly select a draw number between 0 and 1000
+    random_number <- sample(0:999, 1)
+    
+    # Extract the matched draw value
+    matched_draw_value <- cvd_df[[paste0("draw_", random_number)]][closest_index]
+    
+    # Find the index of the closest value in exposure_spline to tmrel
+    tmrel_closest_index <- which.min(abs(cvd_df$exposure_spline - tmrel_x[random_number+1]))
+    
+    # Extract the corresponding tmrel RR value
+    tmrelrr <- cvd_df[[paste0("draw_", random_number)]][tmrel_closest_index]
+    
+    # Save RR ambient
+    RRambient <- matched_draw_value/tmrelrr
+
+    if(check_double_zero(RRambient)) {
+              cat("\nZero draw!. cdv_name: " , cvd_name, "year", year, "draw..", i, "draw_number", random_number, " Matched draw: ", matched_draw_value ,  "tmrelrr" , tmrelrr )
+      }
+    
+    # Save the RRambient value for later use
+    RRambient_values <- c(RRambient_values, RRambient)
+    
+    # Append the results to the list
+    rrambient_results_list[[paste0("Year", year, "_", cvd_name, "_Iteration", i)]] <- list(
+      Year = year,
+      Dataset = cvd_name,
+      Iteration = i,
+      RRambient = RRambient
+    )
+  }
+  
+  return(rrambient_results_list)
+}
+```
+     PAF Function 
+
+Explanation: function used to calculate a PAF from a list of risk ratios
+```{r}
+calculate_PAF<-function(RR) {
+  PAF <- (RR - 1) / RR
+  return(PAF)
+}
+```
+
+
+
+Total Risk Ratio Function
+Explanation: The proportion of those using household air pollution (hap) is what determines how much each Risk Ratio (ambient relative to those exposed to both indoor and outdoor PM2.5)  is weighted to determine a final total Risk Ratio 
+
+```{r}
+calculate_total_RR<-function(RRambient, P_hap, RRboth) {
+  # Calculate the total RR using the given formula
+  total_RR <- RRambient * (1 - P_hap) + RRboth * P_hap
+
+  if(check_double_zero(total_RR)) {
+              cat("\nDouble zero with total_rr. Ambient: ", RRambient ,  "p hap: " , P_hap , "RRboth:", RRboth )
+          }
+            
+  # Return the total RR
+  return(total_RR)
+}
+```
+
+
+Proportions and Pie Chart Function
+Explanation: This provides the values and overview of how much people are within each category, a different PAF is calculated for each age group and then later weighted. Note that in newer versions of GBD this step can be omitted since there is now one MR-BRT curve that fits across all age categories. 
+
+```{r}
+calculate_proportions_and_pie_chart<-function(df_wide, region, year, proportions_list) {
+  prop_subset_data <- subset(df_wide, region == region & Year == year)
+  if (nrow(prop_subset_data) == 0) {
+    cat("No data found for region:", region, "and year:", year, "\n")
+    return(proportions_list)
+  }
+  prop_subset_data[, age_columns] <- lapply(prop_subset_data[, age_columns], as.numeric)
+  age_category_sums <- colSums(prop_subset_data[age_columns], na.rm = TRUE)
+  total_population <- sum(age_category_sums)
+  proportions <- age_category_sums / total_population * 100
+  
+  cat("Proportion of each age category in the total population of", region, "(", year, "):\n")
+  for (i in seq_along(age_columns)) {
+    cat(age_columns[i], ": ", sprintf("%.2f%%\n", proportions[i]))
+  }
+  
+  pie(proportions, labels = paste(names(proportions), ": ", round(proportions, 2), "%"), 
+      main = paste("Proportion of each age category in the total population of", region, "(", year, ")"),
+      col = color_palette)
+  
+  proportions_list[[region]] <- proportions
+  return(proportions_list)
+}
+
+```
+
+
+Weighted PAF Function
+Explanation: This weights and summates the total PAF based on each regions age distribution
+
+```{r}
+
+calculate_weighted_paf<-function(paf, age_distribution) {
+    weighted_paf <- paf * age_distribution
+    total_weighted_paf <- sum(weighted_paf)
+    return(total_weighted_paf)
+}
